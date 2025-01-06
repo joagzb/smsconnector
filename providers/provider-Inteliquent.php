@@ -28,11 +28,11 @@ class Inteliquent extends providerBase
             ),
             'api_secret' => array(
                 'type'        => 'string',
-                'label'       => _('Enter API token'),
-                'help'        => _('Enter the Sinch Service API token'),
+                'label'       => _('API Secret'),
+                'help'        => _('Enter your Inteliquent API Secret'),
                 'default'     => '',
                 'required'    => true,
-                'placeholder' => _('Enter API token'),
+                'placeholder' => _('Enter API Secret'),
             ),
         );
     }
