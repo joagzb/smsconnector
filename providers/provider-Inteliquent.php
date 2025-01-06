@@ -4,10 +4,9 @@ namespace FreePBX\modules\Smsconnector\Provider;
 class Inteliquent extends providerBase
 {
     private $configure_auth_url = "https://services.inteliquent.com/Services/2.0.0/configureAuthorization";
+    private $inbound_message_url = "https://services.inteliquent.com/Services/2.0.0/CustomerConfiguredWebhookURLForInboundMessaging";
     private $custom_webhook_url = "";
-    private $inbound_webhook_url = "https://services.inteliquent.com/Services/2.0.0/CustomerConfiguredWebhookURLForInboundMessaging";
-    private $outbound_webhook_url = "https://services.inteliquent.com/Services/2.0.0/publishMessages";
-    private $tn = "";
+    private $outbound_message_url = "https://services.inteliquent.com/Services/2.0.0/publishMessages";
 
     public function __construct()
     {
@@ -26,13 +25,13 @@ class Inteliquent extends providerBase
                 'required'    => true,
                 'placeholder' => _('Enter API Key'),
             ),
-            'api_secret' => array(
+            'tn' => array(
                 'type'        => 'string',
-                'label'       => _('API Secret'),
-                'help'        => _('Enter your Inteliquent API Secret'),
+                'label'       => _('webhook phone number'),
+                'help'        => _('(optional) Configure webhook URL for a specific telephone number (e.g. 17044561234); if null, webhook URL will apply to inbound messages to any of your numbers'),
                 'default'     => '',
-                'required'    => true,
-                'placeholder' => _('Enter API Secret'),
+                'required'    => false,
+                'placeholder' => _('Enter phone number'),
             ),
         );
     }
@@ -47,7 +46,7 @@ class Inteliquent extends providerBase
     {
         $config = $this->getConfig($this->nameRaw);
 
-        if (empty($config['api_key']) || empty($this->custom_webhook_url)) {
+        if (empty($config['api_key'])) {
             throw new \Exception(_('API Key and Webhook URL are required for webhook configuration.'));
         }
 
@@ -138,7 +137,7 @@ class Inteliquent extends providerBase
             throw new \Exception(_('API Key is required for sending messages.'));
         }
 
-        $url = $this->outbound_webhook_url;
+        $url = $this->outbound_message_url;
         $headers = array(
             "Authorization" => sprintf("Bearer %s", $config['api_key']),
             "Content-Type"  => "application/json"
