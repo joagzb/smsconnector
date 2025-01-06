@@ -3,10 +3,12 @@ namespace FreePBX\modules\Smsconnector\Provider;
 
 class Inteliquent extends providerBase
 {
-    private $configure_auth_url = "https://services.inteliquent.com/Services/2.0.0/configureAuthorization";
-    private $inbound_message_url = "https://services.inteliquent.com/Services/2.0.0/CustomerConfiguredWebhookURLForInboundMessaging";
-    private $custom_webhook_url = "";
-    private $outbound_message_url = "https://services.inteliquent.com/Services/2.0.0/publishMessages";
+    private $base_url = "https://messagebroker.inteliquent.com/msgbroker/rest";
+    private $configure_auth_url = "/configureAuthorization";
+    private $inbound_message_url;
+    private $remove_apikey_and_webhook_info = "/removeAuthorization";
+    private $outbound_message_url = "/publishMessages";
+    private $webhooks_configured_info_url = "/selectAuthorization";
 
     public function __construct()
     {
@@ -34,6 +36,8 @@ class Inteliquent extends providerBase
                 'placeholder' => _('Enter phone number'),
             ),
         );
+
+        $this->inbound_message_url = $this->getWebHookUrl();
     }
 
     /**
@@ -57,19 +61,19 @@ class Inteliquent extends providerBase
 
         $authorization = array(
             'inboundAuth' => true,
-            'webhookUrl'  => $this->custom_webhook_url,
+            'webhookUrl'  => $this->inbound_message_url,
             'apiKey'      => $config['api_key'],
         );
 
-        if (!empty($this->tn)) {
-            $authorization['tn'] = $this->tn;
+        if (!empty($config['tn'])) {
+            $authorization['tn'] = $config['tn'];
         }
 
         $payload = array(
             'authorizations' => array($authorization)
         );
 
-        $url = $this->configure_auth_url;
+        $url = $this->base_url . $this->configure_auth_url;
         $json = json_encode($payload);
 
         $session = \FreePBX::Curl()->requests($url);
@@ -137,7 +141,7 @@ class Inteliquent extends providerBase
             throw new \Exception(_('API Key is required for sending messages.'));
         }
 
-        $url = $this->outbound_message_url;
+        $url = $this->base_url . $this->outbound_message_url;
         $headers = array(
             "Authorization" => sprintf("Bearer %s", $config['api_key']),
             "Content-Type"  => "application/json"
