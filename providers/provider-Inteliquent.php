@@ -167,13 +167,33 @@ class Inteliquent extends providerBase
             freepbx_log(FPBX_LOG_INFO, sprintf(_("%s responds: HTTP %s, %s"), $this->nameRaw, $response->status_code, $response->body));
 
             if ($response->status_code >= 200 && $response->status_code < 300) {
-                return json_decode($response->body, true);
+                $data = json_decode($response->body, true);
+
+                if (!$data || !isset($data['authConfig']) || !isset($data['authConfig']['authorizations'])) {
+                    return [];
+                }
+
+                // Filter valid webhook configurations
+                $webhookConfigs = array_filter($data['authConfig']['authorizations'], function ($auth) {
+                    return isset($auth['inboundAuth']) && $auth['inboundAuth'] === true && !empty($auth['webhookUrl']);
+                });
+
+                // Map the filtered results
+                return array_map(function ($auth) {
+                    return array(
+                        'authId'        => $auth['authId'] ?? null,
+                        'tn'            => $auth['tn'] ?? null,
+                        'webhookUrl'    => $auth['webhookUrl'] ?? null,
+                        'headerName'    => $auth['headerName'] ?? null,
+                        'headerValue'   => $auth['headerValue'] ?? null,
+                    );
+                }, $webhookConfigs);
             } else {
                 throw new \Exception(sprintf(_("HTTP %s, %s"), $response->status_code, $response->body));
             }
         } catch (\Exception $e) {
-            freepbx_log(FPBX_LOG_ERROR, sprintf(_('Error retrieving authorization info: %s'), $e->getMessage()));
-            throw new \Exception(sprintf(_('Unable to retrieve authorization info: %s'), $e->getMessage()));
+            freepbx_log(FPBX_LOG_ERROR, sprintf(_('Error retrieving webhook configuration: %s'), $e->getMessage()));
+            throw new \Exception(sprintf(_('Unable to retrieve webhook configuration: %s'), $e->getMessage()));
         }
     }
 

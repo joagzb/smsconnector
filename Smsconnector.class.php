@@ -19,7 +19,7 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 		'routing' => 'sms_routing',
 		'dids'	  => 'sms_dids',
 	);
-	
+
 	public function __construct($freepbx = null)
 	{
 		if ($freepbx == null) {
@@ -38,7 +38,7 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 	 * @param string $adaptor Adaptor name
 	 * @return Smsconnector adaptor object
 	 */
-	public function smsAdaptor($adaptor) 
+	public function smsAdaptor($adaptor)
 	{
 		if(!class_exists('\FreePBX\modules\Sms\Adaptor\Smsconnector')) {
 			include __DIR__.'/adaptor/Smsconnector.class.php';
@@ -114,7 +114,7 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 		$action	   = $this->getReq('action', '');
 		$providers = $this->getReq('providers');
 
-		switch ($action) 
+		switch ($action)
 		{
 			case 'setproviders':
 				return $this->updateProviders($providers);
@@ -122,7 +122,7 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 		}
 	}
 
-	public function getRightNav($request) 
+	public function getRightNav($request)
 	{
 		switch($request['view'])
 		{
@@ -142,9 +142,9 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 	 */
 	public function getActionBar($request)
 	{
-		if ('smsconnector' == $request['display']) 
+		if ('smsconnector' == $request['display'])
 		{
-			if (!isset($_GET['view'])) 
+			if (!isset($_GET['view']))
 			{
 				return [];
 			}
@@ -254,15 +254,6 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 					{
 						$this->updateNumber($uids, $did, $name);
 
-                        if (strtolower($name) === 'inteliquent') {
-                            try {
-                                $this->removeInteliquentWebhook($did, $id);
-                            } catch (\Exception $e) {
-                                $data_return = array("status" => false, "message" => $e->getMessage());
-                                return $data_return;
-                            }
-                        }
-
 						$data_return = array("status" => true, "message" => _("Number updated successfully"));
 					}
 					else
@@ -275,7 +266,7 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 				{
 					$data_return = array("status" => false, "message" => $e->getMessage());
 				}
-				
+
 				break;
 
 			case 'numbers_delete':
@@ -331,12 +322,12 @@ class Smsconnector extends FreePBX_Helpers implements BMO
             $inteliquent_provider = $this->providers['inteliquent']['class'];
             $webhooks = $inteliquent_provider->retrieveConfiguredWebhooks();
 
-            foreach ($webhooks['authorizations'] as $auth) {
-                if (isset($auth['tn']) && ($auth['tn'] == $did || $auth['tn'] == $id)) {
-                    $inteliquent_provider->removeWebhookConfiguration($auth['authId']);
+            foreach ($webhooks as $webhook) {
+                if (isset($webhook['tn']) && ($webhook['tn'] == $did || $webhook['tn'] == $id)) {
+                    $inteliquent_provider->removeWebhookConfiguration($webhook['authId']);
                     freepbx_log(FPBX_LOG_INFO, sprintf(
                         _("Inteliquent webhook with authId %s removed for TN %s"),
-                        $auth['authId'],
+                        $webhook['authId'],
                         $did ?? $id
                     ));
                 }
@@ -354,7 +345,7 @@ class Smsconnector extends FreePBX_Helpers implements BMO
     }
 
 	/**
-	 * getProviderSettings 
+	 * getProviderSettings
 	 * @return array returns an associative array
 	 */
 	public function getProviderSettings()
@@ -382,7 +373,7 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 
 	/**
 	 * getList gets a list of numbers and their associations
-	 * @return array 
+	 * @return array
 	 */
 	public function getList()
 	{
@@ -390,7 +381,7 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 		'INNER JOIN %s as r ON rt.didid = r.didid ' .
 		'WHERE rt.adaptor = "%s" ' .
 		'GROUP BY r.id, rt.didid, r.providerid, rt.did', $this->tablesSms['routing'], $this->tables['relations'], self::adapterName);
-		
+
 		$data = $this->Database->query($sql)->fetchAll(\PDO::FETCH_NAMED);
 		foreach ($data as $key => &$value)
 		{
@@ -695,7 +686,7 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 	{
 		return $this->addNumber($uid, $did, $name, false);
 	}
-	
+
 	/**
 	 * deleteNumber Deletes the given number by smsconnector_relations.didid
 	 * @param  int $id      ID
@@ -782,7 +773,7 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 	 * getUsersWithDids
 	 * @return array of user IDs associated with SMS DIDs
 	 */
-	public function getUsersWithDids() 
+	public function getUsersWithDids()
 	{
 		$sql = sprintf('SELECT DISTINCT uid FROM %s', $this->tablesSms['routing']);
 		return $this->Database->query($sql)->fetchAll(\PDO::FETCH_COLUMN, 0);
@@ -835,12 +826,12 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 		return $data_return;
 	}
 
-	public function usermanShowPage() 
+	public function usermanShowPage()
 	{
 		$request = $_REQUEST;
-		if(isset($request['action'])) 
+		if(isset($request['action']))
 		{
-			switch($request['action']) 
+			switch($request['action'])
 			{
 				case 'adduser':
 				case 'showuser':
@@ -934,7 +925,7 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 
                 if(class_exists($this_provider_name_full))
                 {
-					$this_provider_class = new $this_provider_name_full();					
+					$this_provider_class = new $this_provider_name_full();
 
 					$this->providers[$this_provider_name_lower]['name']    	  = $this_provider_class->getName();
 					$this->providers[$this_provider_name_lower]['nameraw'] 	  = $this_provider_class->getNameRaw();
