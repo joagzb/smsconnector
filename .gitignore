@@ -1,5 +1,80 @@
+# Node.js
 node_modules
 node/logs/install.log
+
+# Build Artifacts
 assets/less/cache
-.vscode
+
+# FreePBX Specific
 module.sig
+
+# IDEs and Editors
+
+## Visual Studio Code
+.vscode/
+.vscode/*
+.code-workspace
+
+## IntelliJ IDEA / PhpStorm / WebStorm
+.idea/
+.idea/*
+*.iml
+
+## Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+## Eclipse
+.project
+.classpath
+.settings/
+.settings/*
+
+## NetBeans
+nbproject/
+nbproject/private/
+
+## Vim / Neovim
+*.swp
+*.swo
+*.swn
+*.bak
+*~
+
+## Emacs
+*~
+.#*
+
+## JetBrains IDEs (General)
+*.ijwb*
+*.iws
+*.ipr
+out/
+.idea/
+
+# MacOS System Files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Log files
+logs/
+*.log
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+.env.production
+.env.test
+
+# Other Temporary Files
+tmp/
+temp/
+.cache/
+dist/
+build/
+coverage/

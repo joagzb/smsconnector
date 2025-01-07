@@ -254,6 +254,18 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 					{
 						$this->updateNumber($uids, $did, $name);
 
+                        if (!empty($did) && $name === 'inteliquent') {
+                            try {
+                                $this->removeInteliquentWebhook($did);
+                            } catch (\Exception $e) {
+                                freepbx_log(FPBX_LOG_ERROR, sprintf(
+                                    _("Number updated, but failed to remove Inteliquent webhook for DID %s: %s"),
+                                    $did,
+                                    $e->getMessage()
+                                ));
+                            }
+                        }
+
 						$data_return = array("status" => true, "message" => _("Number updated successfully"));
 					}
 					else
@@ -269,38 +281,50 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 
 				break;
 
-			case 'numbers_delete':
-                $getdata = $this->getReq("data", array());
-				$id = $this->getReq("id", null);
-                $did  = $getdata['didNumber'];
-                $name = $getdata['providerNumber'];
+            case 'numbers_delete':
+                $id = $this->getReq("id", null);
+                $did = null;
+                $name = null;
 
-				if (empty($id))
-				{
-					$data_return = array("status" => false, "message" => _("ID is missing!"));
-				}
-				else if (! $this->isExistDIDByID($id))
-				{
-					$data_return = array("status" => false, "message" => _("ID does not exist!"));
-				}
-				else if ($this->deleteNumber($id))
-				{
-                    if (strtolower($name) === 'inteliquent') {
+                if (empty($id)) {
+                    $data_return = array("status" => false, "message" => _("ID is missing!"));
+                    break;
+                }
+
+                if (!$this->isExistDIDByID($id)) {
+                    $data_return = array("status" => false, "message" => _("ID does not exist!"));
+                    break;
+                }
+
+                $numberData = $this->getNumber($id);
+                if (!empty($numberData) || isset($numberData['did'], $numberData['name'])) {
+                    $did = $numberData['did'];
+                    $name = strtolower($numberData['name']);
+                }
+
+                if ($this->deleteNumber($id)) {
+                    if (isset($did, $name) && $name === 'inteliquent') {
                         try {
-                            $this->removeInteliquentWebhook($did, $id);
+                            $this->removeInteliquentWebhook($did);
                         } catch (\Exception $e) {
-                            $data_return = array("status" => false, "message" => $e->getMessage());
-                            return $data_return;
+                            freepbx_log(FPBX_LOG_ERROR, sprintf(
+                                _("Number deleted, but failed to remove Inteliquent webhook for DID %s: %s"),
+                                $did,
+                                $e->getMessage()
+                            ));
+                            $data_return = array(
+                                "status" => false,
+                                "message" => _("Number deleted, but failed to remove Inteliquent webhook: ") . $e->getMessage()
+                            );
+                            break;
                         }
                     }
 
-					$data_return = array("status" => true, "message" => _("Number delete successfully"));
-				}
-				else
-				{
-					$data_return = array("status" => false, "message" => _("Number delete failed!"));
-				}
-				break;
+                    $data_return = array("status" => true, "message" => _("Number deleted successfully"));
+                } else {
+                    $data_return = array("status" => false, "message" => _("Number deletion failed!"));
+                }
+                break;
 
 			default:
 				$data_return = array("status" => false, "message" => _("Command not found!"), "command" => $command);
@@ -309,42 +333,53 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 	}
 
     /**
-     * Remove Inteliquent webhook for a specific TN or ID.
+     * Remove Inteliquent Webhook by DID
      *
-     * @param string $did Phone number (DID) to match with webhook TN.
-     * @param string $id ID to match with webhook TN as fallback.
-     * @return bool True if successful, false if failed.
-     * @throws \Exception If webhook removal fails.
+     * @param string $did The DID (phone number) of the webhook to remove.
+     * @return bool Returns true on success, false on failure.
+     * @throws \Exception If there is an error during removal.
      */
-    private function removeInteliquentWebhook($did, $id)
+    private function removeInteliquentWebhook($did)
     {
+        if (empty($did)) {
+            freepbx_log(FPBX_LOG_ERROR, _("Failed to remove Inteliquent webhook. DID is null or empty."));
+            return false;
+        }
+
         try {
             $inteliquent_provider = $this->providers['inteliquent']['class'];
-            $webhooks = $inteliquent_provider->retrieveConfiguredWebhooks();
+            $phone = ltrim($did, '+');
 
+            $webhooks = $inteliquent_provider->retrieveConfiguredWebhooks();
             foreach ($webhooks as $webhook) {
-                if (isset($webhook['tn']) && ($webhook['tn'] == $did || $webhook['tn'] == $id)) {
+                if (isset($webhook['tn']) && $webhook['tn'] === $phone) {
                     $inteliquent_provider->removeWebhookConfiguration($webhook['authId']);
                     freepbx_log(FPBX_LOG_INFO, sprintf(
                         _("Inteliquent webhook with authId %s removed for TN %s"),
                         $webhook['authId'],
-                        $did ?? $id
+                        $phone
                     ));
+                    return true;
                 }
             }
 
-            return true;
+            freepbx_log(FPBX_LOG_WARNING, sprintf(
+                _("No matching Inteliquent webhook found for phone number %s."),
+                $phone
+            ));
+            return false;
+
         } catch (\Exception $e) {
             freepbx_log(FPBX_LOG_ERROR, sprintf(
                 _("Failed to remove Inteliquent webhook for DID %s: %s"),
-                $did ?? $id,
+                $did,
                 $e->getMessage()
             ));
             throw new \Exception(_("Failed to remove Inteliquent webhook: ") . $e->getMessage());
         }
     }
 
-	/**
+    /**
 	 * getProviderSettings
 	 * @return array returns an associative array
 	 */
