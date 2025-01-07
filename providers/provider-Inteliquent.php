@@ -26,15 +26,7 @@ class Inteliquent extends providerBase
                 'default'     => '',
                 'required'    => true,
                 'placeholder' => _('Enter API Key'),
-            ),
-            'tn' => array(
-                'type'        => 'string',
-                'label'       => _('webhook phone number'),
-                'help'        => _('(optional) Configure webhook URL for a specific telephone number (e.g. 17044561234); if null, webhook URL will apply to inbound messages to any of your numbers'),
-                'default'     => '',
-                'required'    => false,
-                'placeholder' => _('Enter phone number'),
-            ),
+            )
         );
 
         $this->inbound_message_url = $this->getWebHookUrl();
@@ -143,6 +135,45 @@ class Inteliquent extends providerBase
         } catch (\Exception $e) {
             freepbx_log(FPBX_LOG_ERROR, sprintf(_('Error removing authorization: %s'), $e->getMessage()));
             throw new \Exception(sprintf(_('Unable to remove authorization: %s'), $e->getMessage()));
+        }
+    }
+
+    /**
+     * Retrieve API Key and Webhook Information
+     *
+     * @return array The list of API keys and webhook URLs
+     * @throws \Exception
+     */
+    public function retrieveConfiguredWebhooks()
+    {
+        $config = $this->getConfig($this->nameRaw);
+
+        if (empty($config['api_key'])) {
+            throw new \Exception(_('API Key is required for retrieving authorization info.'));
+        }
+
+        $url = $this->base_url . $this->webhooks_configured_info_url;
+
+        $headers = array(
+            "Authorization" => sprintf("Bearer %s", $config['api_key']),
+            "Content-Type"  => "application/json"
+        );
+
+        $session = \FreePBX::Curl()->requests($url);
+
+        try {
+            $response = $session->post('', $headers, '{}', array());
+
+            freepbx_log(FPBX_LOG_INFO, sprintf(_("%s responds: HTTP %s, %s"), $this->nameRaw, $response->status_code, $response->body));
+
+            if ($response->status_code >= 200 && $response->status_code < 300) {
+                return json_decode($response->body, true);
+            } else {
+                throw new \Exception(sprintf(_("HTTP %s, %s"), $response->status_code, $response->body));
+            }
+        } catch (\Exception $e) {
+            freepbx_log(FPBX_LOG_ERROR, sprintf(_('Error retrieving authorization info: %s'), $e->getMessage()));
+            throw new \Exception(sprintf(_('Unable to retrieve authorization info: %s'), $e->getMessage()));
         }
     }
 
