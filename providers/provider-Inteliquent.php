@@ -93,6 +93,60 @@ class Inteliquent extends providerBase
     }
 
     /**
+     * Remove API Key and Webhook Information
+     *
+     * @param int $authId ID associated with the API key or webhook to be removed
+     * @return bool
+     * @throws \Exception
+     */
+    public function removeWebhookConfiguration($authId)
+    {
+        if (empty($authId)) {
+            throw new \Exception(_('Authorization ID (authId) is required to remove API key or webhook.'));
+        }
+
+        $config = $this->getConfig($this->nameRaw);
+
+        if (empty($config['api_key'])) {
+            throw new \Exception(_('API Key is required for removing authorization.'));
+        }
+
+        $url = $this->base_url . $this->remove_apikey_and_webhook_info;
+
+        $headers = array(
+            "Authorization" => sprintf("Bearer %s", $config['api_key']),
+            "Content-Type"  => "application/json"
+        );
+
+        $payload = array(
+            'authorizations' => array(
+                array('authId' => $authId)
+            )
+        );
+
+        $json = json_encode($payload);
+        if ($json === false) {
+            throw new \Exception(_('Failed to encode authorization payload to JSON.'));
+        }
+
+        $session = \FreePBX::Curl()->requests($url);
+
+        try {
+            $response = $session->post('', $headers, $json, array());
+            freepbx_log(FPBX_LOG_INFO, sprintf(_("%s responds: HTTP %s, %s"), $this->nameRaw, $response->status_code, $response->body));
+
+            if ($response->status_code >= 200 && $response->status_code < 300) {
+                return true;
+            } else {
+                throw new \Exception(sprintf(_("HTTP %s, %s"), $response->status_code, $response->body));
+            }
+        } catch (\Exception $e) {
+            freepbx_log(FPBX_LOG_ERROR, sprintf(_('Error removing authorization: %s'), $e->getMessage()));
+            throw new \Exception(sprintf(_('Unable to remove authorization: %s'), $e->getMessage()));
+        }
+    }
+
+    /**
      * Send a text message via Inteliquent
      *
      * @param int $id Message ID
@@ -117,8 +171,8 @@ class Inteliquent extends providerBase
         }
 
         $payload = array(
-            'from' => $from,
-            'to'   => [$to],
+            'from' => ltrim($from, '+'),
+            'to'   => [ltrim($to, '+')],
             'text' => $message
         );
 
@@ -211,11 +265,11 @@ class Inteliquent extends providerBase
         }
 
         if (isset($sms->deliveryReceipt) && $sms->deliveryReceipt === true) { // Handle Delivery Receipts
-            $referenceId = $sms->referenceId ?? null;
+            $reference_id = $sms->referenceId ?? null;
 
-            if ($referenceId) {
+            if ($reference_id) {
                 try {
-                    $connector->markMessageAsDelivered($referenceId);
+                    $connector->markMessageAsDelivered($reference_id);
                 } catch (\Exception $e) {
                     throw new \Exception(sprintf(_('Unable to process delivery receipt: %s'), $e->getMessage()));
                 }
@@ -224,8 +278,8 @@ class Inteliquent extends providerBase
                 return 403;
             }
         } else { // Handle Inbound Messages
-            $referenceId = $sms->referenceId ?? null;
-            $from = $sms->from ?? null;
+            $reference_id = $sms->referenceId ?? null;
+            $from = isset($sms->from) ? ltrim($sms->from, '+') : null;
             $text = $sms->text ?? '';
             $tos = $sms->to ?? [];
 
@@ -240,13 +294,14 @@ class Inteliquent extends providerBase
             }
 
             foreach ($tos as $to) {
+                $to = ltrim($to, '+');
                 if (empty($to)) {
                     continue; // Skip to the next recipient in case of empty number
                 }
 
                 try {
-                    $msgid = $connector->getMessage($to, $from, '', $text, null, null, $referenceId);
-                    $connector->emitSmsInboundUserEvt($msgid, $to, $from, '', $text, null, 'Smsconnector', $referenceId);
+                    $msgid = $connector->getMessage($to, $from, '', $text, null, null, $reference_id);
+                    $connector->emitSmsInboundUserEvt($msgid, $to, $from, '', $text, null, 'Smsconnector', $reference_id);
                 } catch (\Exception $e) {
                     freepbx_log(FPBX_LOG_ERROR, sprintf(_('Unable to process inbound message: %s'), $e->getMessage()));
                     throw new \Exception(sprintf(_('Unable to process inbound message: %s'), $e->getMessage()));
