@@ -317,6 +317,25 @@ class Inteliquent extends providerBase
             return 403;
         }
 
+        if (isset($sms->deliveryReceipt) && $sms->deliveryReceipt === true) {
+            $this->handleDeliveryReceipt($sms);
+        } else {
+            $return_code = $this->handleInboundSmsWebhook($connector, $sms);
+        }
+
+        return $return_code;
+    }
+
+    private function handleDeliveryReceipt($sms)
+    {
+        freepbx_log(
+            FPBX_LOG_INFO,
+            sprintf(_("Got Delivery receipt from reference: %s"), $sms->referenceId ?? 'not specified')
+        );
+    }
+
+    private function handleInboundSmsWebhook($connector, $sms): int
+    {
         $reference_id = $sms->referenceId ?? null;
         $from = isset($sms->from) ? ltrim($sms->from, '+') : null;
         $text = $sms->text ?? '';
@@ -348,11 +367,11 @@ class Inteliquent extends providerBase
                 $connector->emitSmsInboundUserEvt($msgid, $to, $from, '', $text, null, 'Smsconnector', $reference_id);
             } catch (\Exception $e) {
                 freepbx_log(FPBX_LOG_ERROR, sprintf(_('Unable to process inbound message: %s'), $e->getMessage()));
-                throw new \Exception(sprintf(_('Unable to process inbound message: %s'), $e->getMessage()));
+                return 400;
             }
         }
 
-        return $return_code;
+        return 202;
     }
 
 }
