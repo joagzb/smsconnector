@@ -38,11 +38,12 @@ class Inteliquent extends providerBase
      * @return bool
      * @throws \Exception
      */
-    public function configureWebhook()
+    public function configureWebhook($inbound_webhook_url = '')
     {
         $config = $this->getConfig($this->nameRaw);
+        $webhook_url = !empty($inbound_webhook_url) ? $inbound_webhook_url : $this->inbound_message_url;
 
-        if (empty($config['api_key'])) {
+        if (empty($config['api_key']) || empty($webhook_url)) {
             throw new \Exception(_('API Key and Webhook URL are required for webhook configuration.'));
         }
 
@@ -53,7 +54,7 @@ class Inteliquent extends providerBase
 
         $authorization = array(
             'inboundAuth' => true,
-            'webhookUrl'  => $this->inbound_message_url,
+            'webhookUrl'  => $webhook_url,
             'apiKey'      => $config['api_key'],
         );
 
@@ -125,7 +126,6 @@ class Inteliquent extends providerBase
 
         try {
             $response = $session->post('', $headers, $json, array());
-            freepbx_log(FPBX_LOG_INFO, sprintf(_("%s responds: HTTP %s, %s"), $this->nameRaw, $response->status_code, $response->body));
 
             if ($response->status_code >= 200 && $response->status_code < 300) {
                 return true;
@@ -159,12 +159,10 @@ class Inteliquent extends providerBase
             "Content-Type"  => "application/json"
         );
 
-        $session = \FreePBX::Curl()->requests($url);
 
         try {
+            $session = \FreePBX::Curl()->requests($url);
             $response = $session->post('', $headers, '{}', array());
-
-            freepbx_log(FPBX_LOG_INFO, sprintf(_("%s responds: HTTP %s, %s"), $this->nameRaw, $response->status_code, $response->body));
 
             if ($response->status_code >= 200 && $response->status_code < 300) {
                 $data = json_decode($response->body, true);
@@ -193,7 +191,7 @@ class Inteliquent extends providerBase
             }
         } catch (\Exception $e) {
             freepbx_log(FPBX_LOG_ERROR, sprintf(_('Error retrieving webhook configuration: %s'), $e->getMessage()));
-            throw new \Exception(sprintf(_('Unable to retrieve webhook configuration: %s'), $e->getMessage()));
+            throw $e;
         }
     }
 
@@ -227,7 +225,13 @@ class Inteliquent extends providerBase
             'text' => $message
         );
 
-        return $this->sendInteliquent($payload, $id);
+        try {
+            $this->sendInteliquent($payload, $id);
+            return true;
+        } catch (\Exception $e) {
+            freepbx_log(FPBX_LOG_ERROR, sprintf(_('Failed to send message (ID: %d): %s'), $id, $e->getMessage()));
+            return false;
+        }
     }
 
     /**
@@ -235,15 +239,14 @@ class Inteliquent extends providerBase
      *
      * @param array $payload
      * @param int $mid
-     * @return bool
+     * @return void
      * @throws \Exception
      */
-    private function sendInteliquent($payload, $mid): bool
+    private function sendInteliquent($payload, $mid): void
     {
         $config = $this->getConfig($this->nameRaw);
 
         if (empty($config['api_key'])) {
-            freepbx_log(FPBX_LOG_ERROR, _('API Key is required for sending messages.'));
             throw new \Exception(_('API Key is required for sending messages.'));
         }
 
@@ -262,19 +265,31 @@ class Inteliquent extends providerBase
         freepbx_log(FPBX_LOG_INFO, sprintf(_("Sending message from %s to %s"), $payload['from'], json_encode($payload['to'])));
 
         $session = \FreePBX::Curl()->requests($url);
-        try {
-            $response = $session->post('', $headers, $json, array());
-            freepbx_log(FPBX_LOG_INFO, sprintf(_("%s responds: HTTP %s, %s"), $this->nameRaw, $response->status_code, $response->body));
+        $response = $session->post('', $headers, $json, array());
 
-            if ($response->status_code >= 200 && $response->status_code < 300) {
-                $this->setDelivered($mid);
-                return true;
-            } else {
-                throw new \Exception(sprintf(_("HTTP %s, %s"), $response->status_code, $response->body));
-            }
+        freepbx_log(FPBX_LOG_INFO, sprintf(
+            _("%s responds: HTTP %s, %s"),
+            $this->nameRaw,
+            $response->status_code,
+            $response->body
+        ));
+
+        if ($response->status_code < 200 || $response->status_code >= 300) {
+            throw new \Exception(sprintf(
+                _('HTTP %s: %s'),
+                $response->status_code,
+                $response->body
+            ));
+        }
+
+        try {
+            $this->setDelivered($mid);
         } catch (\Exception $e) {
-            freepbx_log(FPBX_LOG_ERROR, sprintf(_('Error sending message: %s'), $e->getMessage()));
-            throw new \Exception(sprintf(_('Unable to send message: %s'), $e->getMessage()));
+            freepbx_log(FPBX_LOG_ERROR, sprintf(
+                _('Message sent, but failed to mark message (ID: %d) as delivered: %s'),
+                $mid,
+                $e->getMessage()
+            ));
         }
     }
 
