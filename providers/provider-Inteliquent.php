@@ -5,7 +5,6 @@ class Inteliquent extends providerBase
 {
     private $base_url = "https://messagebroker.inteliquent.com/msgbroker/rest";
     private $configure_auth_url = "/configureAuthorization";
-    private $inbound_message_url;
     private $remove_apikey_and_webhook_info = "/removeAuthorization";
     private $outbound_message_url = "/publishMessages";
     private $webhooks_configured_info_url = "/selectAuthorization";
@@ -28,8 +27,6 @@ class Inteliquent extends providerBase
                 'placeholder' => _('Enter API Key'),
             )
         );
-
-        $this->inbound_message_url = $this->getWebHookUrl();
     }
 
     /**
@@ -53,7 +50,7 @@ class Inteliquent extends providerBase
 
         $authorization = array(
             'inboundAuth' => true,
-            'webhookUrl'  => $this->inbound_message_url,
+            'webhookUrl'  => $this->getWebHookUrl(),
             'apiKey'      => $config['api_key'],
         );
 
@@ -227,7 +224,8 @@ class Inteliquent extends providerBase
             'text' => $message
         );
 
-        return $this->sendInteliquent($payload, $id);
+        $this->sendInteliquent($payload, $id);
+        return true;
     }
 
     /**
@@ -235,10 +233,10 @@ class Inteliquent extends providerBase
      *
      * @param array $payload
      * @param int $mid
-     * @return bool
+     * @return void
      * @throws \Exception
      */
-    private function sendInteliquent($payload, $mid): bool
+    private function sendInteliquent($payload, $mid): void
     {
         $config = $this->getConfig($this->nameRaw);
 
@@ -268,10 +266,10 @@ class Inteliquent extends providerBase
 
             if ($response->status_code >= 200 && $response->status_code < 300) {
                 $this->setDelivered($mid);
-                return true;
             } else {
                 throw new \Exception(sprintf(_("HTTP %s, %s"), $response->status_code, $response->body));
             }
+
         } catch (\Exception $e) {
             freepbx_log(FPBX_LOG_ERROR, sprintf(_('Error sending message: %s'), $e->getMessage()));
             throw new \Exception(sprintf(_('Unable to send message: %s'), $e->getMessage()));
@@ -319,50 +317,38 @@ class Inteliquent extends providerBase
             return 403;
         }
 
-        if (isset($sms->deliveryReceipt) && $sms->deliveryReceipt === true) { // Handle Delivery Receipts
-            $reference_id = $sms->referenceId ?? null;
+        $reference_id = $sms->referenceId ?? null;
+        $from = isset($sms->from) ? ltrim($sms->from, '+') : null;
+        $text = $sms->text ?? '';
+        $tos = isset($sms->to) && is_array($sms->to) ? $sms->to : [];
 
-            if(empty($reference_id)){
-                freepbx_log(FPBX_LOG_ERROR, _("Missing referenceId in delivery receipt."));
-                return 403;
+        if (empty($reference_id)) {
+            freepbx_log(FPBX_LOG_ERROR, _("Missing 'referenceId' field in inbound message."));
+            return 403;
+        }
+
+        if (empty($from)) {
+            freepbx_log(FPBX_LOG_ERROR, _("Missing 'from' field in inbound message."));
+            return 403;
+        }
+
+        if (empty($tos)) {
+            freepbx_log(FPBX_LOG_ERROR, _("Missing or invalid 'to' field in inbound message."));
+            return 403;
+        }
+
+        foreach ($tos as $to) {
+            $to = ltrim($to, '+');
+            if (empty($to)) {
+                continue; // Skip to the next recipient in case of empty number
             }
 
             try {
-                $connector->markMessageAsDelivered($reference_id);
+                $msgid = $connector->getMessage($to, $from, '', $text, null, null, $reference_id);
+                $connector->emitSmsInboundUserEvt($msgid, $to, $from, '', $text, null, 'Smsconnector', $reference_id);
             } catch (\Exception $e) {
-                freepbx_log(FPBX_LOG_ERROR, sprintf(_('Unable to process delivery receipt: %s'), $e->getMessage()));
-                throw new \Exception(sprintf(_('Unable to process delivery receipt: %s'), $e->getMessage()));
-            }
-
-        } else { // Handle Inbound Messages
-            $reference_id = $sms->referenceId ?? null;
-            $from = isset($sms->from) ? ltrim($sms->from, '+') : null;
-            $text = $sms->text ?? '';
-            $tos = $sms->to ?? [];
-
-            if (empty($from)) {
-                freepbx_log(FPBX_LOG_ERROR, _("Missing 'from' field in inbound message."));
-                return 403;
-            }
-
-            if (empty($tos) || !is_array($tos)) {
-                freepbx_log(FPBX_LOG_ERROR, _("Missing or invalid 'to' field in inbound message."));
-                return 403;
-            }
-
-            foreach ($tos as $to) {
-                $to = ltrim($to, '+');
-                if (empty($to)) {
-                    continue; // Skip to the next recipient in case of empty number
-                }
-
-                try {
-                    $msgid = $connector->getMessage($to, $from, '', $text, null, null, $reference_id);
-                    $connector->emitSmsInboundUserEvt($msgid, $to, $from, '', $text, null, 'Smsconnector', $reference_id);
-                } catch (\Exception $e) {
-                    freepbx_log(FPBX_LOG_ERROR, sprintf(_('Unable to process inbound message: %s'), $e->getMessage()));
-                    throw new \Exception(sprintf(_('Unable to process inbound message: %s'), $e->getMessage()));
-                }
+                freepbx_log(FPBX_LOG_ERROR, sprintf(_('Unable to process inbound message: %s'), $e->getMessage()));
+                throw new \Exception(sprintf(_('Unable to process inbound message: %s'), $e->getMessage()));
             }
         }
 
