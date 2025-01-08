@@ -243,6 +243,7 @@ class Inteliquent extends providerBase
         $config = $this->getConfig($this->nameRaw);
 
         if (empty($config['api_key'])) {
+            freepbx_log(FPBX_LOG_ERROR, _('API Key is required for sending messages.'));
             throw new \Exception(_('API Key is required for sending messages.'));
         }
 
@@ -254,8 +255,11 @@ class Inteliquent extends providerBase
 
         $json = json_encode($payload);
         if ($json === false) {
+            freepbx_log(FPBX_LOG_ERROR, _('Failed to encode message payload to JSON.'));
             throw new \Exception(_('Failed to encode message payload to JSON.'));
         }
+
+        freepbx_log(FPBX_LOG_INFO, sprintf(_("Sending message from %s to %s"), $payload['from'], json_encode($payload['to'])));
 
         $session = \FreePBX::Curl()->requests($url);
         try {
@@ -302,7 +306,7 @@ class Inteliquent extends providerBase
         $return_code = 202;
 
         if ($_SERVER['REQUEST_METHOD'] !== "POST") {
-            freepbx_log(FPBX_LOG_WARNING, _("Invalid request method. Only POST is allowed."));
+            freepbx_log(FPBX_LOG_ERROR, _("Invalid request method. Only POST is allowed."));
             return 405;
         }
 
@@ -318,16 +322,18 @@ class Inteliquent extends providerBase
         if (isset($sms->deliveryReceipt) && $sms->deliveryReceipt === true) { // Handle Delivery Receipts
             $reference_id = $sms->referenceId ?? null;
 
-            if ($reference_id) {
-                try {
-                    $connector->markMessageAsDelivered($reference_id);
-                } catch (\Exception $e) {
-                    throw new \Exception(sprintf(_('Unable to process delivery receipt: %s'), $e->getMessage()));
-                }
-            } else {
-                freepbx_log(FPBX_LOG_WARNING, _("Missing referenceId in delivery receipt."));
+            if(empty($reference_id)){
+                freepbx_log(FPBX_LOG_ERROR, _("Missing referenceId in delivery receipt."));
                 return 403;
             }
+
+            try {
+                $connector->markMessageAsDelivered($reference_id);
+            } catch (\Exception $e) {
+                freepbx_log(FPBX_LOG_ERROR, sprintf(_('Unable to process delivery receipt: %s'), $e->getMessage()));
+                throw new \Exception(sprintf(_('Unable to process delivery receipt: %s'), $e->getMessage()));
+            }
+
         } else { // Handle Inbound Messages
             $reference_id = $sms->referenceId ?? null;
             $from = isset($sms->from) ? ltrim($sms->from, '+') : null;
@@ -335,12 +341,12 @@ class Inteliquent extends providerBase
             $tos = $sms->to ?? [];
 
             if (empty($from)) {
-                freepbx_log(FPBX_LOG_WARNING, _("Missing 'from' field in inbound message."));
+                freepbx_log(FPBX_LOG_ERROR, _("Missing 'from' field in inbound message."));
                 return 403;
             }
 
             if (empty($tos) || !is_array($tos)) {
-                freepbx_log(FPBX_LOG_WARNING, _("Missing or invalid 'to' field in inbound message."));
+                freepbx_log(FPBX_LOG_ERROR, _("Missing or invalid 'to' field in inbound message."));
                 return 403;
             }
 
