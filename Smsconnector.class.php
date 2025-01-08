@@ -254,18 +254,6 @@ class Smsconnector extends FreePBX_Helpers implements BMO
 					{
 						$this->updateNumber($uids, $did, $name);
 
-                        if (!empty($did) && $name === 'inteliquent') {
-                            try {
-                                $this->removeInteliquentWebhook($did);
-                            } catch (\Exception $e) {
-                                freepbx_log(FPBX_LOG_ERROR, sprintf(
-                                    _("Number updated, but failed to remove Inteliquent webhook for DID %s: %s"),
-                                    $did,
-                                    $e->getMessage()
-                                ));
-                            }
-                        }
-
 						$data_return = array("status" => true, "message" => _("Number updated successfully"));
 					}
 					else
@@ -363,7 +351,7 @@ class Smsconnector extends FreePBX_Helpers implements BMO
                 }
             }
 
-            freepbx_log(FPBX_LOG_WARNING, sprintf(
+            freepbx_log(FPBX_LOG_INFO, sprintf(
                 _("No matching Inteliquent webhook found for phone number %s."),
                 $phone
             ));
@@ -375,7 +363,6 @@ class Smsconnector extends FreePBX_Helpers implements BMO
                 $did,
                 $e->getMessage()
             ));
-            throw new \Exception(_("Failed to remove Inteliquent webhook: ") . $e->getMessage());
         }
     }
 
