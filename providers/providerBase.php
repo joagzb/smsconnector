@@ -107,7 +107,7 @@ abstract class providerBase
     {
         if ($id != "")
         {
-            $sql = sprintf('UPDATE %s SET read = 1 where id = :id', 'sms_messages');
+            $sql = sprintf('UPDATE %s SET `read` = 1 WHERE id = :id', 'sms_messages');
             $stmt = $this->Database->prepare($sql);
             $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
             $stmt->execute();
