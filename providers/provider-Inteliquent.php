@@ -1,4 +1,5 @@
 <?php
+
 namespace FreePBX\modules\Smsconnector\Provider;
 
 class Inteliquent extends providerBase
@@ -12,18 +13,18 @@ class Inteliquent extends providerBase
     public function __construct()
     {
         parent::__construct();
-        $this->name       = _('Inteliquent');
-        $this->nameRaw    = 'inteliquent';
+        $this->name = _('Inteliquent');
+        $this->nameRaw = 'inteliquent';
         $this->APIUrlInfo = 'https://portal.inteliquent.com/CustomerPortal/apiDocV2.htm';
         $this->APIVersion = 'v2';
 
         $this->configInfo = array(
             'api_key' => array(
-                'type'        => 'string',
-                'label'       => _('API Key'),
-                'help'        => _("Enter your Inteliquent API Key"),
-                'default'     => '',
-                'required'    => true,
+                'type' => 'string',
+                'label' => _('API Key'),
+                'help' => _("Enter your Inteliquent API Key"),
+                'default' => '',
+                'required' => true,
                 'placeholder' => _('Enter API Key'),
             )
         );
@@ -45,13 +46,13 @@ class Inteliquent extends providerBase
 
         $headers = array(
             "Authorization" => sprintf("Bearer %s", $config['api_key']),
-            "Content-Type"  => "application/json"
+            "Content-Type" => "application/json"
         );
 
         $authorization = array(
             'inboundAuth' => true,
-            'webhookUrl'  => $this->getWebHookUrl(),
-            'apiKey'      => $config['api_key'],
+            'webhookUrl' => $this->getWebHookUrl(),
+            'apiKey' => $config['api_key'],
         );
 
         if (!empty($config['tn'])) {
@@ -104,7 +105,7 @@ class Inteliquent extends providerBase
 
         $headers = array(
             "Authorization" => sprintf("Bearer %s", $config['api_key']),
-            "Content-Type"  => "application/json"
+            "Content-Type" => "application/json"
         );
 
         $payload = array(
@@ -153,7 +154,7 @@ class Inteliquent extends providerBase
 
         $headers = array(
             "Authorization" => sprintf("Bearer %s", $config['api_key']),
-            "Content-Type"  => "application/json"
+            "Content-Type" => "application/json"
         );
 
         $session = \FreePBX::Curl()->requests($url);
@@ -178,11 +179,11 @@ class Inteliquent extends providerBase
                 // Map the filtered results
                 return array_map(function ($auth) {
                     return array(
-                        'authId'        => $auth['authId'] ?? null,
-                        'tn'            => $auth['tn'] ?? null,
-                        'webhookUrl'    => $auth['webhookUrl'] ?? null,
-                        'headerName'    => $auth['headerName'] ?? null,
-                        'headerValue'   => $auth['headerValue'] ?? null,
+                        'authId' => $auth['authId'] ?? null,
+                        'tn' => $auth['tn'] ?? null,
+                        'webhookUrl' => $auth['webhookUrl'] ?? null,
+                        'headerName' => $auth['headerName'] ?? null,
+                        'headerValue' => $auth['headerValue'] ?? null,
                     );
                 }, $webhookConfigs);
             } else {
@@ -220,7 +221,7 @@ class Inteliquent extends providerBase
 
         $payload = array(
             'from' => ltrim($from, '+'),
-            'to'   => [ltrim($to, '+')],
+            'to' => [ltrim($to, '+')],
             'text' => $message
         );
 
@@ -248,7 +249,7 @@ class Inteliquent extends providerBase
         $url = $this->base_url . $this->outbound_message_url;
         $headers = array(
             "Authorization" => sprintf("Bearer %s", $config['api_key']),
-            "Content-Type"  => "application/json"
+            "Content-Type" => "application/json"
         );
 
         $json = json_encode($payload);
@@ -318,7 +319,7 @@ class Inteliquent extends providerBase
         }
 
         if (isset($sms->deliveryReceipt) && $sms->deliveryReceipt === true) {
-            $this->handleDeliveryReceipt($sms);
+            $this->handleDeliveryReceipt($connector, $sms);
         } else {
             $return_code = $this->handleInboundSmsWebhook($connector, $sms);
         }
@@ -326,12 +327,35 @@ class Inteliquent extends providerBase
         return $return_code;
     }
 
-    private function handleDeliveryReceipt($sms)
+    private function handleDeliveryReceipt($connector, $sms): void
     {
+        $reference_id = $sms->referenceId ?? null;
+        $from = isset($sms->from) ? ltrim($sms->from, '+') : null;
+        $text = $sms->text ?? '';
+        $tos = isset($sms->to) && is_array($sms->to) ? $sms->to : [];
+
         freepbx_log(
             FPBX_LOG_INFO,
             sprintf(_("Got Delivery receipt from reference: %s"), $sms->referenceId ?? 'not specified')
         );
+
+        if (empty($reference_id) || empty($from) || empty($tos)) {
+            return;
+        }
+
+        foreach ($tos as $to) {
+            $to = ltrim($to, '+');
+            if (empty($to)) {
+                continue; // Skip to the next recipient in case of empty number
+            }
+
+            try {
+                $msgid = $connector->getMessage($to, $from, '', $text, null, null, $reference_id);
+                $this->setRead($msgid);
+            } catch (\Exception $e) {
+                freepbx_log(FPBX_LOG_ERROR, sprintf(_('Unable to process inbound Delivery Receipt: %s'), $e->getMessage()));
+            }
+        }
     }
 
     private function handleInboundSmsWebhook($connector, $sms): int

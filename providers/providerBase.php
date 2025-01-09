@@ -98,6 +98,22 @@ abstract class providerBase
         }
     }
 
+    /**
+     * Set an outbound message as read
+     *
+     * @param int $id message id
+     */
+    protected function setRead($id)
+    {
+        if ($id != "")
+        {
+            $sql = sprintf('UPDATE %s SET read = 1 where id = :id', 'sms_messages');
+            $stmt = $this->Database->prepare($sql);
+            $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
+            $stmt->execute();
+        }
+    }
+
     protected function getConfig($name)
     {
         return $this->FreePBX->Smsconnector->getProviderConfig($name);
