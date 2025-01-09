@@ -330,7 +330,6 @@ class Inteliquent extends providerBase
     {
         $reference_id = $sms->referenceId ?? null;
         $from = isset($sms->from) ? ltrim($sms->from, '+') : null;
-        $text = $sms->text ?? '';
         $tos = isset($sms->to) && is_array($sms->to) ? $sms->to : [];
 
         freepbx_log(
@@ -349,8 +348,6 @@ class Inteliquent extends providerBase
             }
 
             try {
-                $msgid = $connector->getMessage($from, $to, '', $text, null, null, $reference_id);
-                $this->setRead($msgid);
                 $connector->markMessageAsDelivered($reference_id);
             } catch (\Exception $e) {
                 freepbx_log(FPBX_LOG_ERROR, sprintf(_('Unable to process inbound Delivery Receipt: %s'), $e->getMessage()));
