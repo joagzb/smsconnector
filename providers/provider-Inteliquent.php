@@ -263,7 +263,6 @@ class Inteliquent extends providerBase
         $session = \FreePBX::Curl()->requests($url);
         try {
             $response = $session->post('', $headers, $json, array());
-            freepbx_log(FPBX_LOG_INFO, sprintf(_("%s responds: HTTP %s, %s"), $this->nameRaw, $response->status_code, $response->body));
 
             if ($response->status_code >= 200 && $response->status_code < 300) {
                 $this->setDelivered($mid);
@@ -350,8 +349,9 @@ class Inteliquent extends providerBase
             }
 
             try {
-                $msgid = $connector->getMessage($to, $from, '', $text, null, null, $reference_id);
+                $msgid = $connector->getMessage($from, $to, '', $text, null, null, $reference_id);
                 $this->setRead($msgid);
+                $connector->markMessageAsDelivered($reference_id);
             } catch (\Exception $e) {
                 freepbx_log(FPBX_LOG_ERROR, sprintf(_('Unable to process inbound Delivery Receipt: %s'), $e->getMessage()));
             }
