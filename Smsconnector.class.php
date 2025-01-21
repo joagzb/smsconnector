@@ -291,23 +291,6 @@ class Smsconnector extends FreePBX_Helpers implements BMO
                 }
 
                 if ($this->deleteNumber($id)) {
-                    if (isset($did, $name) && $name === 'inteliquent') {
-                        try {
-                            $this->removeInteliquentWebhook($did);
-                        } catch (\Exception $e) {
-                            freepbx_log(FPBX_LOG_ERROR, sprintf(
-                                _("Number deleted, but failed to remove Inteliquent webhook for DID %s: %s"),
-                                $did,
-                                $e->getMessage()
-                            ));
-                            $data_return = array(
-                                "status" => false,
-                                "message" => _("Number deleted, but failed to remove Inteliquent webhook: ") . $e->getMessage()
-                            );
-                            break;
-                        }
-                    }
-
                     $data_return = array("status" => true, "message" => _("Number deleted successfully"));
                 } else {
                     $data_return = array("status" => false, "message" => _("Number deletion failed!"));
