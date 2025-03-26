@@ -303,15 +303,27 @@ class Inteliquent extends providerBase
     {
         $return_code = 202;
 
+        freepbx_log(FPBX_LOG_INFO, sprintf(
+            "Webhook debug - Method: %s | Content-Type: %s | Query: %s | Raw body: %s",
+            $_SERVER['REQUEST_METHOD'],
+            $_SERVER['CONTENT_TYPE'] ?? 'not set',
+            $_SERVER['QUERY_STRING'] ?? 'none',
+            file_get_contents("php://input")
+        ));
+
+
         if ($_SERVER['REQUEST_METHOD'] !== "POST") {
-            freepbx_log(FPBX_LOG_ERROR, _("Invalid request method. Only POST is allowed."));
+            freepbx_log(FPBX_LOG_INFO, _("ERROR. Invalid request method. Only POST is allowed."));
             return 405;
         }
 
         $post_data = file_get_contents("php://input");
-        $sms = json_decode($post_data);
+        freepbx_log(FPBX_LOG_INFO, sprintf(_("[Inteliquent] Webhook (%s) received: %s"), $this->nameRaw, print_r($post_data, true)));
 
-        freepbx_log(FPBX_LOG_INFO, sprintf(_("Webhook (%s) received: %s"), $this->nameRaw, print_r($post_data, true)));
+        $sms = json_decode($post_data);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            freepbx_log(FPBX_LOG_INFO, "ERROR. JSON decode error: " . json_last_error_msg());
+        }
 
         if (empty($sms)) {
             return 403;
